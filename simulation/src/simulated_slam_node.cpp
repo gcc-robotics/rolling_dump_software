@@ -133,7 +133,7 @@ int main(int argc, char **argv)
 	// Bottom
 	simulatedObstacle(-4.0, -1.5, 2, 2);
 	simulatedObstacle(3.0, -2.5, 2, 1);
-	simulatedObstacle(0.0, -4.0, 1, 3);
+	simulatedObstacle(0.0, -3.5, 1, 1.5);
 	
 	// Copy the map over to the message
 	for(int i = 0; i < 1440000; i++)

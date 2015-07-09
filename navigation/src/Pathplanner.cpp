@@ -105,76 +105,39 @@ void Pathplanner::processMap(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 }
 
 /**
-	Function that calculates the corresponding grid column of an x coordinate
+	Function that calculates the corresponding grid index of an coordinate
 
-	@param	x		float
-	@return	column	int
+	@param	coord	float
+	@return	grid	int
 */
-int Pathplanner::getGridColumn(float x)
+int Pathplanner::getGrid(float coord)
 {
-	int column = (x / this->gridResolution) + this->gridCenter;
+	int grid = (coord / this->gridResolution) + this->gridCenter;
 	
-	if(column < 0)
+	if(grid < 0)
 	{
-		column = 0;
+		grid = 0;
 	}
 
-	if(column >= this->gridLength)
+	if(grid >= this->gridLength)
 	{
-		column = this->gridLength - 1;
+		grid = this->gridLength - 1;
 	}
 
-	return column;
+	return grid;
 }
 
 /**
-	Function that calculates the corresponding grid row of an y coordinate
-
-	@param	y		float
-	@return	row		int
-*/
-int Pathplanner::getGridRow(float y)
-{
-	int row = (-y / this->gridResolution) + this->gridCenter;
-	
-	// Clamp the outputs to the limits
-	if(row < 0)
-	{
-		row = 0;
-	}
-
-	if(row >= this->gridLength)
-	{
-		row = this->gridLength - 1;
-	}
-
-	return row;
-}
-
-/**
-	Function that calculates the corresponding x coordinate from the
+	Function that calculates the corresponding coordinate from the
 	occupancy grid index
 
-	@param	gridColumn	int
-	@return	xCoordinate	float
+	@param	grid		int
+	@return	coordinate	float
 */
-float Pathplanner::getXCoordinate(int gridColumn)
+float Pathplanner::getCoordinate(int grid)
 {
-	float xCoordinate = (gridColumn - this->gridCenter) * this->gridResolution;
-	return xCoordinate;
-}
-
-/**
-	Function that calculates the corresponding y coordinate from the
-	occupancy grid index
-
-	@param	gridRow		int
-	@return	yCoordinate	float
-*/
-float Pathplanner::getYCoordinate(int gridRow)
-{
-	float yCoordinate = -(gridRow - this->gridCenter) * this->gridResolution;
-	return yCoordinate;
+	float coordinate = (grid - this->gridCenter) * this->gridResolution;
+	return coordinate;
 }
 
 /**
@@ -188,17 +151,17 @@ int Pathplanner::getXObstacleInPath()
 	float currentX = this->currentPose.pose.position.x;
 	float currentY = this->currentPose.pose.position.y;
 	
-	int currentRow = this->getGridRow(currentY);
-	int currentColumn = this->getGridColumn(currentX);
+	int currentRow = this->getGrid(currentY);
+	int currentColumn = this->getGrid(currentX);
 	
-	if(this->getXCoordinate(this->getGridColumn(currentX)) != currentX)
+	if(this->getCoordinate(this->getGrid(currentX)) != currentX)
 	{
-		ROS_INFO("X; OG: %f, New: %f", currentX, this->getXCoordinate(this->getGridColumn(currentX)));
+		ROS_INFO("X; OG: %f, New: %f", currentX, this->getCoordinate(this->getGrid(currentX)));
 	}
 	
-	if(this->getYCoordinate(this->getGridRow(currentY)) != currentY)
+	if(this->getCoordinate(this->getGrid(currentY)) != currentY)
 	{
-		ROS_INFO("X; OG: %f, New: %f", currentY, this->getYCoordinate(this->getGridRow(currentY)));
+		ROS_INFO("X; OG: %f, New: %f", currentY, this->getCoordinate(this->getGrid(currentY)));
 	}
 	
 	//float currentZ = this->currentPose.pose.orientation.z;
@@ -288,8 +251,8 @@ int Pathplanner::getYObstacleInPath()
 	//float currentAngle = 2 * acos(currentZ) * (180/3.14);
 
 	std::vector<int> indices;
-	indices.push_back(this->getGridColumn(currentX));
-	indices.push_back(this->getGridRow(currentY));
+	indices.push_back(this->getGrid(currentX));
+	indices.push_back(this->getGrid(currentY));
 
 	int column = indices[1];
 	int row = indices[0];
@@ -349,23 +312,23 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 	targetPoint.header.frame_id = "map";
 
 	int nearestObstacleColumn = this->getXObstacleInPath();
-	float xCoordinateOfObstacleColumn = this->getXCoordinate(nearestObstacleColumn);
+	float xCoordinateOfObstacleColumn = this->getCoordinate(nearestObstacleColumn);
 	
 	//int nearestObstacleRow = this->getYObstacleInPath();
-	//float yCoordinateOfObstacleRow = this->getYCoordinate(nearestObstacleRow);
+	//float yCoordinateOfObstacleRow = this->getCoordinate(nearestObstacleRow);
 
 	// Limit to 10M by 10M box
 	/*if(this->sweepingRight)
 	{
-		xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? 5.0 : this->getXCoordinate(nearestObstacleColumn);
+		xCoordinateOfObstacleColumn = (fabs(this->getCoordinate(nearestObstacleColumn)) > 5.0) ? 5.0 : this->getCoordinate(nearestObstacleColumn);
 	}
 	else
 	{
-		xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? -5.0 : this->getXCoordinate(nearestObstacleColumn);
+		xCoordinateOfObstacleColumn = (fabs(this->getCoordinate(nearestObstacleColumn)) > 5.0) ? -5.0 : this->getCoordinate(nearestObstacleColumn);
 	}*/
 	
 	ROS_INFO("xCoordinateOfObstacleColumn: %f", xCoordinateOfObstacleColumn);
-	//float yCoordinateOfObstacleRow = this->getYCoordinate(nearestObstacleRow);
+	//float yCoordinateOfObstacleRow = this->getCoordinate(nearestObstacleRow);
 
 	double distanceToXObstacle = fabs(currentX - xCoordinateOfObstacleColumn);
 	//double distanceToYObstacle = fabs(currentY - yCoordinateOfObstacleRow);

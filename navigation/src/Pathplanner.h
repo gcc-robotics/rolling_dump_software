@@ -44,10 +44,8 @@ class Pathplanner
 		void processPose(geometry_msgs::PoseStamped msg);
 		int getXObstacleInPath();
 		int getYObstacleInPath();
-		int getGridColumn(float x);
-		int getGridRow(float y);
-		float getXCoordinate(int gridColumn);
-		float getYCoordinate(int gridRow);
+		int getGrid(float coord);
+		float getCoordinate(int grid);
 		geometry_msgs::PointStamped getTargetPoint();
 
 
