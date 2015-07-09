@@ -12,12 +12,12 @@ Pathplanner::Pathplanner(ros::NodeHandle rosNode)
 	this->node = rosNode;
 
 	// Subscribe to map data
-	this->map_subscriber = this->node.subscribe("/map", 1, &Pathplanner::processMap, this);
+	this->map_subscriber = this->node.subscribe("/map", 0, &Pathplanner::processMap, this);
 
 	this->poseUpdated = false;
 
 	// Subscribe to pose data, use /initialpose for testing
-	this->pose_subscriber = this->node.subscribe("/simulatedPose", 1, &Pathplanner::processPose, this);
+	this->pose_subscriber = this->node.subscribe("/simulatedPose", 0, &Pathplanner::processPose, this);
 
 	// Publisher for the target point
 	this->targetPointPublisher = node.advertise<geometry_msgs::PointStamped>("/targetPoint", 1);
@@ -46,124 +46,238 @@ void Pathplanner::processPose(geometry_msgs::PoseStamped msg)
 /**
 	Callback function for processing OccupancyGrid array and storing into 2D array
 
-	@param	msg	boost::shared_ptr<nav_msgs::OccupancyGrid>
+	@param	msg	const nav_msgs::OccupancyGrid::ConstPtr&
 	@return		void
 */
-void Pathplanner::processMap(boost::shared_ptr<nav_msgs::OccupancyGrid> msg)
+void Pathplanner::processMap(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
 	this->gridLength = msg->info.width;	// Length from mapMetaData
 	this->gridResolution = msg->info.resolution;
 	this->gridCenter = gridLength / 2;
-	this->boundaryBoxGrid = BOUNDARY_BOX_SIZE / this->gridResolution;
-	this->gridLowerBound = this->gridCenter - (this->boundaryBoxGrid / 2);
-	this->gridUpperBound = this->gridCenter + (this->boundaryBoxGrid / 2);
-
-	int index = 0;
-	for (int i = 0; i < this->gridLength; i++)
+	this->boundaryBoxGridLength = BOUNDARY_BOX_SIZE / this->gridResolution;
+	this->boundaryBoxGridLowerBound = this->gridCenter - (this->boundaryBoxGridLength / 2);
+	this->boundaryBoxGridUpperBound = this->gridCenter + (this->boundaryBoxGridLength / 2);
+	
+	// Clamp the boundary box parameters
+	// Boundary Box Grid Length
+	if(this->boundaryBoxGridLength < 0)
 	{
-		for (int j = 0; j < this->gridLength; j++)
+		this->boundaryBoxGridLength = 0;
+	}
+	
+	if(this->boundaryBoxGridLength > this->gridLength)
+	{
+		this->boundaryBoxGridLength = this->gridLength;
+	}
+	
+	// Boundary Box Grid Lower Bound
+	if(this->boundaryBoxGridLowerBound < 0)
+	{
+		this->boundaryBoxGridLowerBound = 0;
+	}
+	
+	if(this->boundaryBoxGridLowerBound > this->gridCenter)
+	{
+		this->boundaryBoxGridLowerBound = this->gridCenter;
+	}
+	
+	// Boundary Box Grid Upper Bound
+	if(this->boundaryBoxGridUpperBound < this->gridCenter)
+	{
+		this->boundaryBoxGridUpperBound = this->gridCenter;
+	}
+	
+	if(this->boundaryBoxGridUpperBound >= gridLength)
+	{
+		this->boundaryBoxGridUpperBound = gridLength - 1;
+	}
+	
+
+	//memcpy(this->occupancyGrid, msg->data, (this->gridLength * this->gridLength) * sizeof(int));
+
+	for(int i = 0; i < this->gridLength; i++)
+	{
+		for(int j = 0; j < this->gridLength; j++)
 		{
-			occupancyGrid[i][j] = msg->data[index];//note: change to memset
-			index++;
+			this->occupancyGrid[i][j] = msg->data[(i * 1200) + j]; //note: change to memset
 		}
 	}
 }
 
 /**
-	Function that calculates the corresponding grid indices of an x,y coordinate
+	Function that calculates the corresponding grid column of an x coordinate
 
-	@param	x			float
-	@param	y			float   
-	@return	gridIndices	std::vector<int>
+	@param	x		float
+	@return	column	int
 */
-std::vector<int> Pathplanner::getGrid(float x, float y)
+int Pathplanner::getGridColumn(float x)
 {
-	std::vector<int> gridIndices;
-	float row, column;
-	column = (x / this->gridResolution) + this->gridCenter;
-	row = (-y / this->gridResolution) + this->gridCenter;
-
-	if(row == this->gridLength)
+	int column = (x / this->gridResolution) + this->gridCenter;
+	
+	if(column < 0)
 	{
-		row = this->gridLength - 1;
+		column = 0;
 	}
 
-	if(column == this->gridLength)
+	if(column >= this->gridLength)
 	{
 		column = this->gridLength - 1;
 	}
 
-	//ROS_INFO(" FROM GRID: %i, %i", row, column);
-	gridIndices.push_back((int)column);
-	gridIndices.push_back((int)row);
-	//ROS_INFO("Row: %i", gridIndices[0]);
-	//ROS_INFO("Column: %i", gridIndices[1]);
+	return column;
+}
 
-	return gridIndices;
+/**
+	Function that calculates the corresponding grid row of an y coordinate
+
+	@param	y		float
+	@return	row		int
+*/
+int Pathplanner::getGridRow(float y)
+{
+	int row = (-y / this->gridResolution) + this->gridCenter;
+	
+	// Clamp the outputs to the limits
+	if(row < 0)
+	{
+		row = 0;
+	}
+
+	if(row >= this->gridLength)
+	{
+		row = this->gridLength - 1;
+	}
+
+	return row;
+}
+
+/**
+	Function that calculates the corresponding x coordinate from the
+	occupancy grid index
+
+	@param	gridColumn	int
+	@return	xCoordinate	float
+*/
+float Pathplanner::getXCoordinate(int gridColumn)
+{
+	float xCoordinate = (gridColumn - this->gridCenter) * this->gridResolution;
+	return xCoordinate;
+}
+
+/**
+	Function that calculates the corresponding y coordinate from the
+	occupancy grid index
+
+	@param	gridRow		int
+	@return	yCoordinate	float
+*/
+float Pathplanner::getYCoordinate(int gridRow)
+{
+	float yCoordinate = -(gridRow - this->gridCenter) * this->gridResolution;
+	return yCoordinate;
 }
 
 /**
 	Function that calculates the column in which an obstacle (i.e. grid indices 
-	corresponding to a value greater than 50 (obstacle) or equal to -1 (unknown))
+	corresponding to a value greater than 75 (obstacle))
 
-	@param	x	float
-	@param	y	float   
-	@return	row	int
+	@return	column	int
 */
 int Pathplanner::getXObstacleInPath()
 {
-	// ROS_INFO("%i, %i", indices[0], indices[1]);
-
 	float currentX = this->currentPose.pose.position.x;
 	float currentY = this->currentPose.pose.position.y;
-	float currentZ = this->currentPose.pose.orientation.z;
+	
+	int currentRow = this->getGridRow(currentY);
+	int currentColumn = this->getGridColumn(currentX);
+	
+	if(this->getXCoordinate(this->getGridColumn(currentX)) != currentX)
+	{
+		ROS_INFO("X; OG: %f, New: %f", currentX, this->getXCoordinate(this->getGridColumn(currentX)));
+	}
+	
+	if(this->getYCoordinate(this->getGridRow(currentY)) != currentY)
+	{
+		ROS_INFO("X; OG: %f, New: %f", currentY, this->getYCoordinate(this->getGridRow(currentY)));
+	}
+	
+	//float currentZ = this->currentPose.pose.orientation.z;
 	//float currentAngle = 2 * acos(currentZ) * (180/3.14);
 
-	std::vector<int> indices = getGrid(currentX, currentY);
-
-	ROS_INFO("X: %f, Y: %f", currentX, currentY);
-
-	int column = indices[1];
-	int row = indices[0];
-
-	poseUpdated = false;
-
+	this->poseUpdated = false;
+	
+	int rowCheckHeight = 20,
+		columnIncrement,
+		startColumn = currentColumn,
+		endColumn,
+		currentCheckColumn = startColumn,
+		columnsToCheck,
+		startRow = currentRow - (rowCheckHeight / 2),
+		endRow = startRow + rowCheckHeight,
+		currentCheckRow = startRow,
+		rowsToCheck,
+		obstacleCells = 0,
+		obstacleCellsTreshold = 3;
+		
+	// Clamp startRow
+	if(startRow < this->boundaryBoxGridLowerBound)
+	{
+		startRow = currentCheckRow = this->boundaryBoxGridLowerBound;
+	}
+	
+	// Direction dependent variables
 	if(this->sweepingRight)
 	{
-		for(; column < this->gridLength - 1; ++column)
-		{
-			int row = (indices[0] - 10 < 0) ? 0 : indices[0] - 10;
-			int endI = (indices[0] + 10 >= this->gridLength) ? this->gridLength - 1 : indices[0] + 10;
-
-			for(; row < endI; row++)
-			{
-				if(occupancyGrid[row][column] >= 75) // || occupancyGrid[row][column] == -1)
-				{
-					ROS_INFO("Obst Column: %i", column);
-					return column;
-				}
-			}
-		}
+		columnIncrement = 1;
+		endColumn = this->boundaryBoxGridUpperBound;
 	}
 	else
 	{
-		for(; column >= 1; --column)
+		columnIncrement = -1;
+		endColumn = this->boundaryBoxGridLowerBound;
+	}
+	
+	ROS_INFO("Current X: %f, Y: %f", currentX, currentY);
+	ROS_INFO("Current Row: %i, Column: %i", currentRow, currentColumn);
+	ROS_INFO("Sweeping Right? %i", this->sweepingRight);
+	
+	columnsToCheck = abs(startColumn - endColumn);
+	
+	while(columnsToCheck > 0)
+	{
+		obstacleCells = 0;
+		rowsToCheck = abs(startRow - endRow);
+		
+		if(this->occupancyGrid[currentRow][currentCheckColumn] >= 75)
 		{
-			int row = (indices[0] - 10 < 0) ? 0 : indices[0] - 10;
-			int endI = (indices[0] + 10 >= this->gridLength) ? this->gridLength - 1 : indices[0] + 10;
-			
-			for(; row < endI; row++)
+			ROS_INFO("Returning XObst Column: %i", currentCheckColumn);
+			return currentCheckColumn;
+		}
+
+		/*while(rowsToCheck > 0)
+		{
+			if(this->occupancyGrid[currentCheckRow][currentCheckColumn] >= 75) // || occupancyGrid[row][column] == -1)
 			{
-				if(occupancyGrid[row][column] >= 75) //|| occupancyGrid[row][column] == -1)
+				obstacleCells++;
+				
+				ROS_INFO("Obstacle! row: %i, column: %i, value: %i", currentCheckRow, currentCheckColumn, occupancyGrid[currentCheckRow][currentCheckColumn]);
+				
+				if(obstacleCells > obstacleCellsTreshold)
 				{
-					ROS_INFO("Obst Column: %i", column);
-					return column;
+					ROS_INFO("Returning XObst Column: %i", currentCheckColumn);
+					return currentCheckColumn;
 				}
 			}
-		}
+			
+			currentCheckRow += 1;
+			rowsToCheck = abs(startRow - endRow);
+		}*/
+		
+		currentCheckColumn += columnIncrement;
+		columnsToCheck = (currentCheckColumn > 0) ? abs(startColumn - endColumn) : 0;
 	}
-
-	//ROS_INFO("sweeping right? %i, obstacle column: %i, indices[0]: %i, indices[1]: %i", this->sweepingRight, column, indices[0], indices[1]);
+	
+	return endColumn;
 }
 
 int Pathplanner::getYObstacleInPath()
@@ -173,7 +287,9 @@ int Pathplanner::getYObstacleInPath()
 	float currentZ = this->currentPose.pose.orientation.z;
 	//float currentAngle = 2 * acos(currentZ) * (180/3.14);
 
-	std::vector<int> indices = getGrid(currentX, currentY);
+	std::vector<int> indices;
+	indices.push_back(this->getGridColumn(currentX));
+	indices.push_back(this->getGridRow(currentY));
 
 	int column = indices[1];
 	int row = indices[0];
@@ -215,32 +331,6 @@ int Pathplanner::getYObstacleInPath()
 }
 
 /**
-	Function that calculates the corresponding x coordinate from the
-	occupancy grid index
-
-	@param	gridColumn	int
-	@return	xCoordinate	float
-*/
-float Pathplanner::getXCoordinate(int gridColumn)
-{
-	float xCoordinate = (gridColumn - this->gridCenter - 1) * this->gridResolution;
-	return xCoordinate;
-}
-
-/**
-	Function that calculates the corresponding y coordinate from the
-	occupancy grid index
-
-	@param	gridRow		int
-	@return	yCoordinate	float
-*/
-float Pathplanner::getYCoordinate(int gridRow)
-{
-	float yCoordinate = -(gridRow - this->gridCenter - 1) * this->gridResolution;
-	return yCoordinate;
-}
-
-/**
 	Function that calculates the target point based on current position
 	and nearest obstacle in path
 
@@ -250,9 +340,8 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 {
 	float currentX = this->currentPose.pose.position.x;
 	float currentY = this->currentPose.pose.position.y;
-	float currentZ = this->currentPose.pose.orientation.z;
+	//float currentZ = this->currentPose.pose.orientation.z;
 	//float currentAngle = 2 * acos(currentZ) * (180 / 3.14);
-
 
 	geometry_msgs::PointStamped targetPoint;
 
@@ -260,28 +349,31 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 	targetPoint.header.frame_id = "map";
 
 	int nearestObstacleColumn = this->getXObstacleInPath();
-	int nearestObstacleRow = this->getYObstacleInPath();
-	float xCoordinateOfObstacleColumn = 0;//(this->sweepingRight) ? 5 : -5;//this->getXCoordinate(nearestObstacleColumn);
-	float yCoordinateOfObstacleRow = this->getYCoordinate(nearestObstacleRow);
+	float xCoordinateOfObstacleColumn = this->getXCoordinate(nearestObstacleColumn);
+	
+	//int nearestObstacleRow = this->getYObstacleInPath();
+	//float yCoordinateOfObstacleRow = this->getYCoordinate(nearestObstacleRow);
 
-	if(this->sweepingRight)
+	// Limit to 10M by 10M box
+	/*if(this->sweepingRight)
 	{
 		xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? 5.0 : this->getXCoordinate(nearestObstacleColumn);
 	}
 	else
 	{
 		xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? -5.0 : this->getXCoordinate(nearestObstacleColumn);
-	}
+	}*/
+	
 	ROS_INFO("xCoordinateOfObstacleColumn: %f", xCoordinateOfObstacleColumn);
 	//float yCoordinateOfObstacleRow = this->getYCoordinate(nearestObstacleRow);
 
 	double distanceToXObstacle = fabs(currentX - xCoordinateOfObstacleColumn);
-	double distanceToYObstacle = fabs(currentY - yCoordinateOfObstacleRow);
+	//double distanceToYObstacle = fabs(currentY - yCoordinateOfObstacleRow);
 
 	if(this->sweepingRight)
 	{
 		// Target Point X Coordinate
-		if(distanceToXObstacle >= MAX_MOVE_DISTANCE)
+		if(distanceToXObstacle > MAX_MOVE_DISTANCE)
 		{
 			targetPoint.point.x = currentX + MAX_MOVE_DISTANCE;
 			targetPoint.point.y = currentY;
@@ -289,45 +381,43 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 		else
 		{
 			// ROS_INFO("Hit right side, obstacle column: %f, %i", distanceToXObstacle, (distanceToXObstacle >= MAX_MOVE_DISTANCE));
-			targetPoint.point.x = xCoordinateOfObstacleColumn;
+			targetPoint.point.x = currentX; //xCoordinateOfObstacleColumn;
 
-			if(distanceToYObstacle <= MAX_DROP_DISTANCE)
-			{
-				targetPoint.point.y = currentY - distanceToYObstacle;
-				this->sweepingRight = !this->sweepingRight;
-			}
-			else
-			{
+			//if(distanceToYObstacle <= MAX_DROP_DISTANCE)
+			//{
+			//	targetPoint.point.y = currentY - distanceToYObstacle;
+			//	this->sweepingRight = !this->sweepingRight;
+			//}
+			//else
+			//{
 				targetPoint.point.y = currentY - MAX_DROP_DISTANCE;
 				this->sweepingRight = !this->sweepingRight;				
-			}
+			//}
 		}
 	}
-
 	else //else if(!this->sweepingRight)
 	{
 		// Target Point X Coordinate
-		if(distanceToXObstacle >= MAX_MOVE_DISTANCE)
+		if(distanceToXObstacle > MAX_MOVE_DISTANCE)
 		{
 			targetPoint.point.x = currentX - MAX_MOVE_DISTANCE;
 			targetPoint.point.y = currentY;
 		}
-
 		else
 		{
 			// ROS_INFO("Hit left side, obstacle column: %f, %i", distanceToXObstacle, (distanceToXObstacle >= MAX_MOVE_DISTANCE));
-			targetPoint.point.x = xCoordinateOfObstacleColumn;
+			targetPoint.point.x = currentX; //xCoordinateOfObstacleColumn;
 
-			if(distanceToYObstacle <= MAX_DROP_DISTANCE)
-			{
-				targetPoint.point.y = currentY - distanceToYObstacle;
-				this->sweepingRight = !this->sweepingRight;
-			}
-			else
-			{
+			// if(distanceToYObstacle <= MAX_DROP_DISTANCE)
+			// {
+			// 	targetPoint.point.y = currentY - distanceToYObstacle;
+			// 	this->sweepingRight = !this->sweepingRight;
+			// }
+			// else
+			// {
 				targetPoint.point.y = currentY - MAX_DROP_DISTANCE;
 				this->sweepingRight = !this->sweepingRight;				
-			}
+			//}
 		}
 	}
 
@@ -351,6 +441,10 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 bool Pathplanner::getTargetPoint(navigation::getTargetPoint::Request  &req,
 	                             navigation::getTargetPoint::Response &res)
 {
+	ROS_INFO("------------------------------------");
+	ROS_INFO("-- getTargetPoint Service Called! --");
+	ROS_INFO("------------------------------------");
+	
 	// Set the loop rate to 1 hz
 	ros::Rate marekNapRate(10);
 	int currentInteration = 0;
@@ -366,11 +460,8 @@ bool Pathplanner::getTargetPoint(navigation::getTargetPoint::Request  &req,
 		currentInteration++;
 	}
 
-	geometry_msgs::PointStamped currentTarget;
-	currentTarget = getTargetPoint();
-
 	// Set the response
-	res.targetPoint = currentTarget;
+	res.targetPoint = getTargetPoint();
 	ROS_INFO("Current target: X: %f, Y: %f", res.targetPoint.point.x, res.targetPoint.point.y);
 	return true;
 }

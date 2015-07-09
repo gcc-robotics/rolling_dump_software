@@ -18,11 +18,14 @@ ros::Publisher mapMetaDataPublisher;
 int seq = 0;
 int fake_occupancy_grid[1440000];
 
-void  simulatedObstacle(double x, double y, double width, double height)
+void simulatedObstacle(double x, double y, double width, double height)
 {
 	int startCol = fabs(-15 - x) / MAPRESOLUTION;
-	int startRow = fabs(15 - y - height) / MAPRESOLUTION;
+	int endCol = startCol + (width / MAPRESOLUTION);
+	int startRow = fabs(15 - y) / MAPRESOLUTION;
+	int endRow = startRow + (height / MAPRESOLUTION);
 
+	// Clamp Start Column
 	if(startCol < 0)
 	{
 		startCol = 0;
@@ -31,7 +34,18 @@ void  simulatedObstacle(double x, double y, double width, double height)
 	{
 		startCol = 1199;
 	}
-
+	
+	// Clamp End Column
+	if(endCol < 0)
+	{
+		endCol = 0;
+	}
+	else if(endCol > 1199)
+	{
+		endCol = 1199;
+	}
+	
+	// Clamp Start Row
 	if(startRow < 0)
 	{
 		startRow = 0;
@@ -40,9 +54,16 @@ void  simulatedObstacle(double x, double y, double width, double height)
 	{
 		startRow = 1199;
 	}
-
-	int endCol = (startCol + (width / MAPRESOLUTION) > 1199) ? 1199 : startCol + (width / MAPRESOLUTION);
-	int endRow = (startRow + (height / MAPRESOLUTION) > 1199) ? 1199 : startRow + (height / MAPRESOLUTION);
+	
+	// Clamp Start Row
+	if(endRow < 0)
+	{
+		endRow = 0;
+	}
+	else if(endRow > 1199)
+	{
+		endRow = 1199;
+	}
 
 	int index = 0;
 	int currentCol = 0;
@@ -117,13 +138,23 @@ int main(int argc, char **argv)
 		}
 	}*/
 
-	simulatedObstacle(0, 0, 1, 1);
+	simulatedObstacle(3, 5.5, 1, 3);
 	//simulatedObstacle(4, 0.5, 1, 1);
+	
+	int singleDimIt = 0;
+	for(int rowIt = 1199; rowIt >= 0; rowIt--)
+	{
+		for(int columnIt = 0; columnIt < 1200; columnIt++)
+		{
+			occupancy_grid_msg.data[singleDimIt] = fake_occupancy_grid[(rowIt * 1200) + columnIt];
+			singleDimIt++;
+		}
+	}
 
-	for(int i = 0; i < 1440000; i++)
+	/*for(int i = 0; i < 1440000; i++)
 	{
 		occupancy_grid_msg.data[i] = fake_occupancy_grid[i];
-	}
+	}*/
 
 	float fake_resolution = 0.025;
 	int fake_height = 1200;

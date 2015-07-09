@@ -31,20 +31,21 @@ class Pathplanner
 		int gridLength;
 		float gridResolution;
 		int gridCenter;
-		int boundaryBoxGrid;
-		int gridLowerBound;
-		int gridUpperBound;
+		int boundaryBoxGridLength;
+		int boundaryBoxGridLowerBound;
+		int boundaryBoxGridUpperBound;
 
 		// 2D array copy of occupancy grid
 		int occupancyGrid[1200][1200];		// want to dynamically resize array later
 
 	public:
 		Pathplanner(ros::NodeHandle rosNode);
-		void processMap(boost::shared_ptr<nav_msgs::OccupancyGrid> msg);
+		void processMap(const nav_msgs::OccupancyGrid::ConstPtr& msg);
 		void processPose(geometry_msgs::PoseStamped msg);
-		std::vector<int> getGrid(float x, float y);
 		int getXObstacleInPath();
 		int getYObstacleInPath();
+		int getGridColumn(float x);
+		int getGridRow(float y);
 		float getXCoordinate(int gridColumn);
 		float getYCoordinate(int gridRow);
 		geometry_msgs::PointStamped getTargetPoint();
