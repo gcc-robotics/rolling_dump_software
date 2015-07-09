@@ -20,10 +20,10 @@ int fake_occupancy_grid[1440000];
 
 void simulatedObstacle(double x, double y, double width, double height)
 {
-	int startCol = fabs(-15 - x) / MAPRESOLUTION;
+	int startCol = (x + 15) / MAPRESOLUTION;
 	int endCol = startCol + (width / MAPRESOLUTION);
-	int startRow = fabs(15 - y) / MAPRESOLUTION;
-	int endRow = startRow + (height / MAPRESOLUTION);
+	int startRow = (y + 15) / MAPRESOLUTION;
+	int endRow = startRow - (height / MAPRESOLUTION);
 
 	// Clamp Start Column
 	if(startCol < 0)
@@ -70,7 +70,7 @@ void simulatedObstacle(double x, double y, double width, double height)
 
 	ROS_INFO("%i, %i, %i, %i", startCol, startRow, endCol, endRow);
 
-	for(; startRow < endRow; startRow++)
+	for(; startRow > endRow; startRow--)
 	{
 		currentCol = startCol;
 
@@ -102,10 +102,11 @@ int main(int argc, char **argv)
 	occupancy_grid_msg.data.resize(1440000); //1440000
 
 	// row major order
-	// i = row number
-	// j = column number
+	// i = row number, 0 = bottom
+	// j = column number, 0 = left
+	
+	// Add Borders around the edges of the map
 	int index = 0;
-
 	for(int i = 0; i < 1200; i++)
 	{
 		for(int j = 0; j < 1200; j++)
@@ -121,40 +122,24 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-
-	/*for(int i = 0; i < 1200; i++)
-	{
-		for(int j = 0; j < 1200; j++)
-		{
-			if(i >= 400 && i <= 800 && j >= 400 && j <= 800)
-			{
-				index = (i * 1200) + j;
-				fake_occupancy_grid[index] = -1;
-			}
-			else
-			{
-				fake_occupancy_grid[index] = -1;
-			}
-		}
-	}*/
-
-	simulatedObstacle(3, 5.5, 1, 3);
-	//simulatedObstacle(4, 0.5, 1, 1);
 	
-	int singleDimIt = 0;
-	for(int rowIt = 1199; rowIt >= 0; rowIt--)
-	{
-		for(int columnIt = 0; columnIt < 1200; columnIt++)
-		{
-			occupancy_grid_msg.data[singleDimIt] = fake_occupancy_grid[(rowIt * 1200) + columnIt];
-			singleDimIt++;
-		}
-	}
+	// Add some obstacles
 
-	/*for(int i = 0; i < 1440000; i++)
+	// Center Row
+	simulatedObstacle(-5.0, 0.5, 1, 1);
+	simulatedObstacle(-0.5, 0.5, 1, 1);
+	simulatedObstacle(4.0, 0.5, 1, 1);
+	
+	// Bottom
+	simulatedObstacle(-4.0, -1.5, 2, 2);
+	simulatedObstacle(3.0, -2.5, 2, 1);
+	simulatedObstacle(0.0, -4.0, 1, 3);
+	
+	// Copy the map over to the message
+	for(int i = 0; i < 1440000; i++)
 	{
 		occupancy_grid_msg.data[i] = fake_occupancy_grid[i];
-	}*/
+	}
 
 	float fake_resolution = 0.025;
 	int fake_height = 1200;
