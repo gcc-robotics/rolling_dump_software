@@ -137,8 +137,8 @@ int main(int argc, char **argv)
 					//ROS_INFO("First time in the loop");
 					counter++;
 
-					simulatedPoseMessage.pose.position.x = 0.0;
-					simulatedPoseMessage.pose.position.y = 0.0;
+					simulatedPoseMessage.pose.position.x = -5.0;
+					simulatedPoseMessage.pose.position.y = 5.0;
 					simulatedPoseMessage.pose.position.z = 0.0;
 
 					//simulatedPoseMessage.pose.orientation.x = 0.0;

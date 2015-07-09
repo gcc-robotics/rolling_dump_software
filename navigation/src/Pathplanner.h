@@ -26,6 +26,7 @@ class Pathplanner
 		ros::Subscriber pose_subscriber;
 		ros::ServiceServer getTargetPointService;
 		bool sweepingRight;
+		bool dropWhenPossible;
 		bool poseUpdated;
 
 		int gridLength;

@@ -130,7 +130,7 @@ int main(int argc, char **argv)
 
 	// Center Row
 	simulatedObstacle(-5.0, 0.5, 1, 1);
-	simulatedObstacle(-0.5, 0.5, 1, 1);
+	simulatedObstacle(1.5, 0.5, 1, 1);
 	simulatedObstacle(4.0, 0.5, 1, 1);
 	
 	// Bottom

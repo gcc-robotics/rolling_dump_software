@@ -24,6 +24,8 @@ Pathplanner::Pathplanner(ros::NodeHandle rosNode)
 	
 	// Start sweeping to the right
 	this->sweepingRight = true;
+	
+	this->dropWhenPossible = false;
 
 	// Register the navigation services
 	this->getTargetPointService = this->node.advertiseService("/navigation/getTargetPoint", &Pathplanner::getTargetPoint, this);
@@ -202,12 +204,6 @@ int Pathplanner::getXObstacleInPath()
 		obstacleCells = 0;
 		currentCheckRow = startRow;
 		rowsToCheck = abs(currentCheckRow - endRow);
-		
-		/*if(this->occupancyGrid[currentRow][currentCheckColumn] >= 75)
-		{
-			ROS_INFO("Returning XObst Column: %i", currentCheckColumn);
-			return currentCheckColumn;
-		}*/
 
 		while(rowsToCheck > 0)
 		{
@@ -239,50 +235,64 @@ int Pathplanner::getYObstacleInPath()
 {
 	float currentX = this->currentPose.pose.position.x;
 	float currentY = this->currentPose.pose.position.y;
-	//float currentZ = this->currentPose.pose.orientation.z;
-	//float currentAngle = 2 * acos(currentZ) * (180/3.14);
-
-	std::vector<int> indices;
-	indices.push_back(this->getGrid(currentX));
-	indices.push_back(this->getGrid(currentY));
-
-	int column = indices[1];
-	int row = indices[0];
-
-	if(this->sweepingRight)
+	
+	int currentRow = this->getGrid(currentY);
+	int currentColumn = this->getGrid(currentX);
+	
+	int columnCheckWidth = 20,
+		startColumn = currentColumn + (columnCheckWidth / 2),
+		endColumn = startColumn - columnCheckWidth,
+		currentCheckColumn = startColumn,
+		columnsToCheck,
+		startRow = currentRow,
+		endRow = this->boundaryBoxGridLowerBound,
+		currentCheckRow = startRow,
+		rowsToCheck,
+		obstacleCells = 0,
+		obstacleCellsTreshold = 1;
+		
+	// Clamp start column
+	if(startColumn > this->boundaryBoxGridUpperBound)
 	{
-		for( row; row < this->gridLength - 1; ++row)
-		{
-			int column = (indices[1] - 10 < 0) ? 0 : indices[1] - 10;
-			int endI = (indices[1] + 10 >= this->gridLength) ? this->gridLength - 1 : indices[1] + 10;
+		startColumn = currentCheckRow = this->boundaryBoxGridUpperBound;
+	}
+	
+	// Clamp endColumn
+	if(endColumn < this->boundaryBoxGridLowerBound)
+	{
+		endColumn = this->boundaryBoxGridLowerBound;
+	}
 
-			for(column; column < endI; column++)
+	rowsToCheck = abs(currentCheckRow - endRow);
+	
+	while(rowsToCheck > 0)
+	{
+		obstacleCells = 0;
+		currentCheckColumn = startColumn;
+		columnsToCheck = abs(startColumn - endColumn);
+
+		while(columnsToCheck > 0)
+		{
+			if(this->occupancyGrid[currentCheckRow][currentCheckColumn] >= 75)
 			{
-				if(occupancyGrid[row][column] >= 50 || occupancyGrid[row][column] == -1)
+				obstacleCells++;
+				
+				if(obstacleCells > obstacleCellsTreshold)
 				{
-					//ROS_INFO("Obst Row: %i", row);
-					return row;
+					ROS_INFO("Returning YObst Row: %i", currentCheckRow);
+					return currentCheckRow;
 				}
 			}
-		}
-	}
-	else
-	{
-		for(row; row >= 1; --row)
-		{
-			int column = (indices[1] - 10 < 0) ? 0 : indices[1] - 10;
-			int endI = (indices[1] + 10 >= this->gridLength) ? this->gridLength - 1 : indices[1] + 10;
 			
-			for(column; column < endI; column++)
-			{
-				if(occupancyGrid[row][column] >= 50 || occupancyGrid[row][column] == -1)
-				{
-					//ROS_INFO("Obst Row: %i", row);
-					return row;
-				}
-			}
+			currentCheckColumn--;
+			columnsToCheck = abs(currentCheckColumn - endColumn);
 		}
+		
+		currentCheckRow--;
+		rowsToCheck = (currentCheckRow > 0) ? abs(currentCheckRow - endRow) : 0;
 	}
+	
+	return endRow;
 }
 
 /**
@@ -306,21 +316,25 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 	int nearestObstacleColumn = this->getXObstacleInPath();
 	float xCoordinateOfObstacleColumn = this->getCoordinate(nearestObstacleColumn);
 	
-	//int nearestObstacleRow = this->getYObstacleInPath();
-	//float yCoordinateOfObstacleRow = this->getCoordinate(nearestObstacleRow);
-	
-	this->poseUpdated = false;
+	int nearestObstacleRow = this->getYObstacleInPath();
+	float yCoordinateOfObstacleRow = this->getCoordinate(nearestObstacleRow);
 	
 	ROS_INFO("xCoordinateOfObstacleColumn: %f", xCoordinateOfObstacleColumn);
-	//float yCoordinateOfObstacleRow = this->getCoordinate(nearestObstacleRow);
 
 	double distanceToXObstacle = fabs(currentX - xCoordinateOfObstacleColumn);
-	//double distanceToYObstacle = fabs(currentY - yCoordinateOfObstacleRow);
+	double distanceToYObstacle = fabs(currentY - yCoordinateOfObstacleRow);
 
 	if(this->sweepingRight)
 	{
-		// Target Point X Coordinate
-		if(distanceToXObstacle > MAX_MOVE_DISTANCE)
+		if(this->dropWhenPossible && distanceToYObstacle > MAX_DROP_DISTANCE)
+		{
+			targetPoint.point.x = currentX;
+			targetPoint.point.y = currentY - MAX_DROP_DISTANCE;
+			this->dropWhenPossible = false;
+			
+			ROS_WARN("DROPING 2! Dist to YObst: %f", distanceToYObstacle);
+		}
+		else if(distanceToXObstacle > MAX_MOVE_DISTANCE)
 		{
 			targetPoint.point.x = currentX + MAX_MOVE_DISTANCE;
 			targetPoint.point.y = currentY;
@@ -329,23 +343,32 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 		{
 			// ROS_INFO("Hit right side, obstacle column: %f, %i", distanceToXObstacle, (distanceToXObstacle >= MAX_MOVE_DISTANCE));
 			targetPoint.point.x = currentX; //xCoordinateOfObstacleColumn;
+			
+			this->sweepingRight = !this->sweepingRight;
 
-			//if(distanceToYObstacle <= MAX_DROP_DISTANCE)
-			//{
-			//	targetPoint.point.y = currentY - distanceToYObstacle;
-			//	this->sweepingRight = !this->sweepingRight;
-			//}
-			//else
-			//{
+			if(distanceToYObstacle < MAX_DROP_DISTANCE)
+			{
+				this->dropWhenPossible = true;
+				targetPoint.point.y = currentY;
+			}
+			else
+			{
 				targetPoint.point.y = currentY - MAX_DROP_DISTANCE;
-				this->sweepingRight = !this->sweepingRight;				
-			//}
+				ROS_WARN("DROPING! Dist to YObst: %f", distanceToYObstacle);
+			}
 		}
 	}
 	else //else if(!this->sweepingRight)
 	{
-		// Target Point X Coordinate
-		if(distanceToXObstacle > MAX_MOVE_DISTANCE)
+		if(this->dropWhenPossible && distanceToYObstacle > MAX_DROP_DISTANCE)
+		{
+			targetPoint.point.x = currentX;
+			targetPoint.point.y = currentY - MAX_DROP_DISTANCE;
+			this->dropWhenPossible = false;
+			
+			ROS_WARN("DROPING 2! Dist to YObst: %f", distanceToYObstacle);
+		}
+		else if(distanceToXObstacle > MAX_MOVE_DISTANCE)
 		{
 			targetPoint.point.x = currentX - MAX_MOVE_DISTANCE;
 			targetPoint.point.y = currentY;
@@ -354,17 +377,18 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 		{
 			// ROS_INFO("Hit left side, obstacle column: %f, %i", distanceToXObstacle, (distanceToXObstacle >= MAX_MOVE_DISTANCE));
 			targetPoint.point.x = currentX; //xCoordinateOfObstacleColumn;
+			this->sweepingRight = !this->sweepingRight;	
 
-			// if(distanceToYObstacle <= MAX_DROP_DISTANCE)
-			// {
-			// 	targetPoint.point.y = currentY - distanceToYObstacle;
-			// 	this->sweepingRight = !this->sweepingRight;
-			// }
-			// else
-			// {
+			if(distanceToYObstacle < MAX_DROP_DISTANCE)
+			{
+				this->dropWhenPossible = true;
+				targetPoint.point.y = currentY;
+			}
+			else
+			{
 				targetPoint.point.y = currentY - MAX_DROP_DISTANCE;
-				this->sweepingRight = !this->sweepingRight;				
-			//}
+				ROS_WARN("DROPING! Dist to YObst: %f", distanceToYObstacle);		
+			}
 		}
 	}
 
@@ -375,6 +399,8 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 		targetPoint.point.x = -5;
 		targetPoint.point.y = 5;
 	}
+	
+	this->poseUpdated = false;
 
 	return targetPoint;
 }
@@ -406,11 +432,18 @@ bool Pathplanner::getTargetPoint(navigation::getTargetPoint::Request  &req,
 
 		currentInteration++;
 	}
-
-	// Set the response
-	res.targetPoint = getTargetPoint();
-	ROS_INFO("Current target: X: %f, Y: %f", res.targetPoint.point.x, res.targetPoint.point.y);
-	return true;
+	
+	if(ros::ok())
+	{
+		// Set the response
+		res.targetPoint = this->getTargetPoint();
+		ROS_INFO("Current target: X: %f, Y: %f", res.targetPoint.point.x, res.targetPoint.point.y);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }
 
 
