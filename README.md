@@ -1,5 +1,5 @@
-# Autonomous Trash Collection Robot
-## Glendale Community College Robotics Academy
+# Wall-Z Autonomous Trash Collection Robot
+#### By Glendale Community College Robotics Academy
 
 ### Setup
 
@@ -7,10 +7,10 @@
 * Install ROS Indigo
 * Create workspace & clone packages
 
-		mkdir -p dump_ws/src/
-		cd dump_ws/src/
+		mkdir -p wall_z_ws/src/
+		cd wall_z_ws/src/
 		catkin_init_workspace
-		git clone git@github.com:gcc-robotics/rolling_dump_software.git
+		git clone git@github.com:gcc-robotics/wall_z_software.git
 		cd ../
 
 ### Build
