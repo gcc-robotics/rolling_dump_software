@@ -154,38 +154,29 @@ int Pathplanner::getXObstacleInPath()
 	int currentRow = this->getGrid(currentY);
 	int currentColumn = this->getGrid(currentX);
 	
-	if(this->getCoordinate(this->getGrid(currentX)) != currentX)
-	{
-		ROS_INFO("X; OG: %f, New: %f", currentX, this->getCoordinate(this->getGrid(currentX)));
-	}
-	
-	if(this->getCoordinate(this->getGrid(currentY)) != currentY)
-	{
-		ROS_INFO("X; OG: %f, New: %f", currentY, this->getCoordinate(this->getGrid(currentY)));
-	}
-	
-	//float currentZ = this->currentPose.pose.orientation.z;
-	//float currentAngle = 2 * acos(currentZ) * (180/3.14);
-
-	this->poseUpdated = false;
-	
 	int rowCheckHeight = 20,
 		columnIncrement,
 		startColumn = currentColumn,
 		endColumn,
 		currentCheckColumn = startColumn,
 		columnsToCheck,
-		startRow = currentRow - (rowCheckHeight / 2),
-		endRow = startRow + rowCheckHeight,
+		startRow = currentRow + (rowCheckHeight / 2),
+		endRow = startRow - rowCheckHeight,
 		currentCheckRow = startRow,
 		rowsToCheck,
 		obstacleCells = 0,
-		obstacleCellsTreshold = 3;
+		obstacleCellsTreshold = 1;
 		
 	// Clamp startRow
-	if(startRow < this->boundaryBoxGridLowerBound)
+	if(startRow > this->boundaryBoxGridUpperBound)
 	{
-		startRow = currentCheckRow = this->boundaryBoxGridLowerBound;
+		startRow = currentCheckRow = this->boundaryBoxGridUpperBound;
+	}
+	
+	// Clamp endRow
+	if(endRow < this->boundaryBoxGridLowerBound)
+	{
+		endRow = this->boundaryBoxGridLowerBound;
 	}
 	
 	// Direction dependent variables
@@ -209,17 +200,18 @@ int Pathplanner::getXObstacleInPath()
 	while(columnsToCheck > 0)
 	{
 		obstacleCells = 0;
-		rowsToCheck = abs(startRow - endRow);
+		currentCheckRow = startRow;
+		rowsToCheck = abs(currentCheckRow - endRow);
 		
-		if(this->occupancyGrid[currentRow][currentCheckColumn] >= 75)
+		/*if(this->occupancyGrid[currentRow][currentCheckColumn] >= 75)
 		{
 			ROS_INFO("Returning XObst Column: %i", currentCheckColumn);
 			return currentCheckColumn;
-		}
+		}*/
 
-		/*while(rowsToCheck > 0)
+		while(rowsToCheck > 0)
 		{
-			if(this->occupancyGrid[currentCheckRow][currentCheckColumn] >= 75) // || occupancyGrid[row][column] == -1)
+			if(this->occupancyGrid[currentCheckRow][currentCheckColumn] >= 75)
 			{
 				obstacleCells++;
 				
@@ -232,9 +224,9 @@ int Pathplanner::getXObstacleInPath()
 				}
 			}
 			
-			currentCheckRow += 1;
-			rowsToCheck = abs(startRow - endRow);
-		}*/
+			currentCheckRow--;
+			rowsToCheck = abs(currentCheckRow - endRow);
+		}
 		
 		currentCheckColumn += columnIncrement;
 		columnsToCheck = (currentCheckColumn > 0) ? abs(startColumn - endColumn) : 0;
@@ -247,7 +239,7 @@ int Pathplanner::getYObstacleInPath()
 {
 	float currentX = this->currentPose.pose.position.x;
 	float currentY = this->currentPose.pose.position.y;
-	float currentZ = this->currentPose.pose.orientation.z;
+	//float currentZ = this->currentPose.pose.orientation.z;
 	//float currentAngle = 2 * acos(currentZ) * (180/3.14);
 
 	std::vector<int> indices;
@@ -316,16 +308,8 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 	
 	//int nearestObstacleRow = this->getYObstacleInPath();
 	//float yCoordinateOfObstacleRow = this->getCoordinate(nearestObstacleRow);
-
-	// Limit to 10M by 10M box
-	/*if(this->sweepingRight)
-	{
-		xCoordinateOfObstacleColumn = (fabs(this->getCoordinate(nearestObstacleColumn)) > 5.0) ? 5.0 : this->getCoordinate(nearestObstacleColumn);
-	}
-	else
-	{
-		xCoordinateOfObstacleColumn = (fabs(this->getCoordinate(nearestObstacleColumn)) > 5.0) ? -5.0 : this->getCoordinate(nearestObstacleColumn);
-	}*/
+	
+	this->poseUpdated = false;
 	
 	ROS_INFO("xCoordinateOfObstacleColumn: %f", xCoordinateOfObstacleColumn);
 	//float yCoordinateOfObstacleRow = this->getCoordinate(nearestObstacleRow);

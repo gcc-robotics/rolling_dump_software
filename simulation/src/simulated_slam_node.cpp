@@ -124,6 +124,9 @@ int main(int argc, char **argv)
 	}
 	
 	// Add some obstacles
+	
+	// Top
+	simulatedObstacle(0.0, 4.8, 1, 1);
 
 	// Center Row
 	simulatedObstacle(-5.0, 0.5, 1, 1);
