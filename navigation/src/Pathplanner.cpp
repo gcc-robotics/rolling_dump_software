@@ -132,14 +132,15 @@ int Pathplanner::getXObstacleInPath()
 	{
 		for(; column < this->gridLength - 1; ++column)
 		{
-			int row = (indices[0] - 10 < 0) ? 0 : indices[0] - 10;
-			int endI = (indices[0] + 10 >= this->gridLength) ? this->gridLength - 1 : indices[0] + 10;
+			int row = (indices[0] - 1 < 0) ? 0 : indices[0] - 10;
+			int endI = (indices[0] + 1 >= this->gridLength) ? this->gridLength - 1 : indices[0] + 1;
 
 			for(; row < endI; row++)
 			{
-				if(occupancyGrid[row][column] >= 75) // || occupancyGrid[row][column] == -1)
+				if(occupancyGrid[row][column] == 100) // || occupancyGrid[row][column] == -1)
 				{
 					ROS_INFO("Obst Column: %i", column);
+					ROS_INFO("Current indices: %i, %i", row, column);
 					return column;
 				}
 			}
@@ -149,14 +150,15 @@ int Pathplanner::getXObstacleInPath()
 	{
 		for(; column >= 1; --column)
 		{
-			int row = (indices[0] - 10 < 0) ? 0 : indices[0] - 10;
-			int endI = (indices[0] + 10 >= this->gridLength) ? this->gridLength - 1 : indices[0] + 10;
+			int row = (indices[0] - 1 < 0) ? 0 : indices[0] - 1;
+			int endI = (indices[0] + 1 >= this->gridLength) ? this->gridLength - 1 : indices[0] + 1;
 			
 			for(; row < endI; row++)
 			{
-				if(occupancyGrid[row][column] >= 75) //|| occupancyGrid[row][column] == -1)
+				if(occupancyGrid[row][column] == 100) //|| occupancyGrid[row][column] == -1)
 				{
 					ROS_INFO("Obst Column: %i", column);
+					ROS_INFO("Current indices: %i, %i", row, column);
 					return column;
 				}
 			}
@@ -261,16 +263,38 @@ geometry_msgs::PointStamped Pathplanner::getTargetPoint()
 
 	int nearestObstacleColumn = this->getXObstacleInPath();
 	int nearestObstacleRow = this->getYObstacleInPath();
-	float xCoordinateOfObstacleColumn = 0;//(this->sweepingRight) ? 5 : -5;//this->getXCoordinate(nearestObstacleColumn);
+	float xCoordinateOfObstacleColumn = 0;
 	float yCoordinateOfObstacleRow = this->getYCoordinate(nearestObstacleRow);
+	float temp = fabs(this->getXCoordinate(nearestObstacleColumn));
 
 	if(this->sweepingRight)
 	{
-		xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? 5.0 : this->getXCoordinate(nearestObstacleColumn);
+
+		//xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? 5.0 : this->getXCoordinate(nearestObstacleColumn);
+		if(temp > 5.0)
+		{
+			xCoordinateOfObstacleColumn = 5.0;
+			ROS_INFO ("Wall. Setting 5.0");
+		}
+		else
+		{
+			xCoordinateOfObstacleColumn = this->getXCoordinate(nearestObstacleColumn);
+			ROS_INFO("We see obstacle");
+		}
 	}
 	else
 	{
-		xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? -5.0 : this->getXCoordinate(nearestObstacleColumn);
+		//xCoordinateOfObstacleColumn = (fabs(this->getXCoordinate(nearestObstacleColumn)) > 5.0) ? -5.0 : this->getXCoordinate(nearestObstacleColumn);
+		if(temp > 5.0)
+		{
+			xCoordinateOfObstacleColumn = -5.0;
+			ROS_INFO ("Wall. Setting -5.0");
+		}
+		else
+		{
+			xCoordinateOfObstacleColumn = this->getXCoordinate(nearestObstacleColumn);
+			ROS_INFO("We see obstacle");
+		}
 	}
 	ROS_INFO("xCoordinateOfObstacleColumn: %f", xCoordinateOfObstacleColumn);
 	//float yCoordinateOfObstacleRow = this->getYCoordinate(nearestObstacleRow);
