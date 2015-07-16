@@ -8,13 +8,13 @@
 	<remap from="/scan" to="/rawScan" />
 </node>
 
-<node pkg="executive" type="executive_node" name="executive" launch-prefix="xterm -e"/>
+<node pkg="executive" type="executive_node" name="executive_node"/>
 
-<node pkg="executive" type="self_check_node" name="self_check" />
+<node pkg="executive" type="self_check_node" name="self_check_node" />
 
-<node pkg="navigation" type="navigator_node" name="navigator" launch-prefix="xterm -e"/>
+<node pkg="navigation" type="navigator_node" name="navigator_node" />
 
-<node pkg="navigation" type="pathplanner_node" name="pathplanner" launch-prefix="xterm -e"/>
+<node pkg="navigation" type="pathplanner_node" name="pathplanner_node" />
 
 <node pkg="LRF_filter" type="LRF_filter_node" name="LRF_filter_node">
 	<remap from="/filteredScan" to="/scan" />
